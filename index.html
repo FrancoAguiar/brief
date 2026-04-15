@@ -188,13 +188,17 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
+        // --- CONSTANTES ---
+        const MAX_IMAGE_SIZE_MB = 2; // Límite de 2MB
+        const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+
         // --- DATOS POR DEFECTO ---
         const DEFAULT_DATA = {
             // 0. Configuración de Agencia
             agencyName: '@necesitodisenos',
             agencyWeb: 'www.necesitodisenos.com',
             agencyLogo: null,
-            documentColor: '#0066FF', // Ajustado el color inicial por defecto
+            documentColor: '#0066FF',
             
             // 1. Proyecto & Contexto
             cliente: '',
@@ -228,7 +232,6 @@
         };
 
         // --- FUNCIONES HELPER ---
-        // Convierte HEX a RGBA para manejar opacidades dinámicas en los estilos en línea
         const hexToRgba = (hex, opacity) => {
             let h = hex.replace('#', '');
             if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
@@ -251,7 +254,6 @@
             </div>
         );
 
-        // Input de Etiquetas (Burbujas) con botón de "+" explícito
         const TagInput = ({ label, tags, onAddTag, onRemoveTag, placeholder, helperText }) => {
             const [inputValue, setInputValue] = useState('');
             const safeTags = Array.isArray(tags) ? tags : [];
@@ -316,7 +318,7 @@
             </div>
         );
 
-        const UploadBox = ({ title, onChange, previewUrl, customClass = "h-28 w-full", imageClass = "object-cover" }) => (
+        const UploadBox = ({ title, onChange, previewUrl, customClass = "h-28 w-full", imageClass = "object-cover", maxSizeText = `Máx. ${MAX_IMAGE_SIZE_MB}MB` }) => (
             <div className={`relative border border-dashed border-brand-border hover:border-brand-primary/50 rounded-lg overflow-hidden flex flex-col items-center justify-center text-center cursor-pointer transition-colors bg-black/30 group mb-2 ${customClass}`}>
                 <input type="file" accept="image/*" onChange={onChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                 {previewUrl ? (
@@ -324,7 +326,8 @@
                 ) : (
                     <div className="flex flex-col items-center p-3">
                         <i className="ph-bold ph-image text-2xl text-gray-500 group-hover:text-brand-primary mb-1 transition-colors"></i>
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">{title}</p>
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-tight">{title}</p>
+                        <p className="text-[9px] text-gray-500 mt-1">{maxSizeText}</p>
                     </div>
                 )}
             </div>
@@ -347,13 +350,15 @@
             const [isExporting, setIsExporting] = useState(false);
             const [isResetModalOpen, setIsResetModalOpen] = useState(false);
             const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+            const [errorMsg, setErrorMsg] = useState(null); // Estado para controlar mensajes de error
 
             useEffect(() => {
                 try {
                     localStorage.setItem('briefPro_data_v6', JSON.stringify(data));
                 } catch (e) {
-                    console.warn("Exceso de cuota en localStorage. Guardando datos sin imágenes...");
-                    const safeData = { ...data, referencias: [null, null, null, null] };
+                    console.warn("Exceso de cuota en localStorage. Guardando datos sin imágenes para evitar romper la página...");
+                    // Si se excede la memoria, quitamos también el logo para ser seguros
+                    const safeData = { ...data, agencyLogo: null, referencias: [null, null, null, null] };
                     localStorage.setItem('briefPro_data_v6', JSON.stringify(safeData));
                 }
             }, [data]);
@@ -391,10 +396,16 @@
             const updateEntregable = (id, field, value) => setData(prev => ({ ...prev, entregables: prev.entregables.map(item => item.id === id ? { ...item, [field]: value } : item) }));
             const removeEntregable = (id) => setData(prev => ({ ...prev, entregables: prev.entregables.filter(item => item.id !== id) }));
 
-            // Handlers Imágenes Agencia
+            // Handlers Imágenes Agencia (CON VALIDACIÓN DE TAMAÑO)
             const handleAgencyLogoUpload = (e) => {
                 const file = e.target.files[0];
                 if (file) {
+                    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+                        setErrorMsg(`El archivo que intentas subir es demasiado pesado. El límite es de ${MAX_IMAGE_SIZE_MB}MB.`);
+                        e.target.value = ''; // Reset input
+                        return;
+                    }
+
                     const reader = new FileReader();
                     reader.onload = (ev) => handleChange('agencyLogo', ev.target.result);
                     reader.readAsDataURL(file);
@@ -405,10 +416,16 @@
                 handleChange('agencyLogo', null);
             };
 
-            // Handlers Imágenes Referencia
+            // Handlers Imágenes Referencia (CON VALIDACIÓN DE TAMAÑO)
             const handleImageUpload = (e, index) => {
                 const file = e.target.files[0];
                 if (file) {
+                    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+                        setErrorMsg(`La imagen que intentas subir es demasiado pesada. El límite por imagen es de ${MAX_IMAGE_SIZE_MB}MB.`);
+                        e.target.value = ''; // Reset input
+                        return;
+                    }
+
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                         const newRefs = [...data.referencias];
@@ -439,12 +456,11 @@
                 setIsResetModalOpen(false);
             };
 
-            // Descargar PDF como UNA SOLA IMAGEN / PÁGINA
+            // Descargar PDF
             const handleExportPDF = () => {
                 setIsExporting(true);
-                setIsExportModalOpen(true); // Abre el modal de carga falsa
+                setIsExportModalOpen(true); 
                 
-                // Pequeño delay de 1.5s para la carga falsa y dejar que el modal renderice
                 setTimeout(() => {
                     const element = document.getElementById('document-to-export');
                     
@@ -461,7 +477,7 @@
                     
                     html2pdf().set(opt).from(element).save().then(() => {
                         setIsExporting(false);
-                        setIsExportModalOpen(false); // Cierra el modal de carga
+                        setIsExportModalOpen(false);
                     });
                 }, 1500);
             };
@@ -477,31 +493,26 @@
 
             return (
                 <>
-                    {/* PANTALLA DE BLOQUEO MOBILE (Solo visible en dispositivos móviles) */}
+                    {/* PANTALLA DE BLOQUEO MOBILE */}
                     <div className="md:hidden fixed inset-0 z-[200000] bg-[#0A0A0A] flex flex-col items-center justify-center p-6 text-center">
                         <div className="bg-brand-card border border-brand-border rounded-2xl p-8 max-w-[340px] w-full shadow-2xl relative overflow-hidden animate-scaleIn">
-                            {/* Línea superior decorativa */}
                             <div className="absolute top-0 left-0 right-0 h-1 bg-brand-primary shadow-glow"></div>
                             
-                            {/* Icono central */}
                             <div className="w-16 h-16 bg-brand-primary/10 border border-brand-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 relative">
                                 <i className="ph-fill ph-desktop text-brand-primary text-3xl relative z-10"></i>
                             </div>
                             
-                            {/* Textos */}
                             <h2 className="text-2xl font-display font-bold text-white mb-3 tracking-tight">Usá una computadora</h2>
                             
                             <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                                 BriefEditable™ genera documentos en PDF de alta calidad y precisión. Para garantizar la mejor experiencia y rendimiento, esta herramienta <strong className="text-white">solo está disponible en PC o Mac</strong>.
                             </p>
                             
-                            {/* Badge de estado */}
                             <div className="inline-flex items-center gap-2 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-4 py-2.5 rounded-lg border border-brand-primary/20 uppercase tracking-widest shadow-glow">
                                 <i className="ph-bold ph-lock-key text-sm"></i> Acceso Restringido
                             </div>
                         </div>
                         
-                        {/* Marca de agua inferior */}
                         <div className="mt-10 flex justify-center items-center select-none opacity-80">
                             <span className="text-[#737373] text-[11px] font-semibold tracking-[0.15em] font-poppins">CREADO POR</span>
                             <span className="text-brand-primary text-[11px] font-bold tracking-[0.15em] ml-1.5 font-poppins">@NECESITODISENOS</span>
@@ -513,7 +524,7 @@
                         {/* PANEL IZQUIERDO: FORMULARIO DEL DISEÑADOR */}
                         <aside className="w-full md:w-[480px] border-r border-brand-border flex flex-col relative z-20 bg-brand-surface/80 backdrop-blur-md shadow-sheet">
                             
-                            {/* Header Panel Lateral: Estilo BriefEditable™ */}
+                            {/* Header Panel Lateral */}
                             <div className="p-5 border-b border-brand-border sticky top-0 z-10 bg-brand-bg/90 backdrop-blur">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
@@ -530,7 +541,6 @@
                                     <span className="text-[10px] text-brand-primary font-bold tracking-wider uppercase bg-brand-primary/10 border border-brand-primary/20 px-2 py-1 rounded">{calculateProgress()}%</span>
                                 </div>
                                 <div className="h-1 bg-brand-card rounded-full overflow-hidden">
-                                    {/* AQUÍ SE CAMBIÓ LA BARRA DE PROGRESO POR LA CLASE bg-brand-primary (AZUL) */}
                                     <div className="h-full bg-brand-primary transition-all duration-500 ease-out shadow-glow" style={{ width: `${calculateProgress()}%` }}></div>
                                 </div>
                             </div>
@@ -544,7 +554,7 @@
                                     <div className="mb-5">
                                         <label className="block text-[0.7rem] font-poppins font-bold uppercase tracking-[0.05em] text-gray-400 mb-1.5">Logo del Estudio / Agencia</label>
                                         <div className="relative group w-max">
-                                            <UploadBox title="Subir Logo" previewUrl={data.agencyLogo} onChange={handleAgencyLogoUpload} customClass="h-20 w-32" imageClass="object-contain p-2" />
+                                            <UploadBox title="Subir Logo" previewUrl={data.agencyLogo} onChange={handleAgencyLogoUpload} customClass="h-24 w-32" imageClass="object-contain p-2" />
                                             {data.agencyLogo && (
                                                 <button onClick={removeAgencyLogo} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-md">
                                                     <i className="ph-bold ph-x text-[10px]"></i>
@@ -669,7 +679,7 @@
                                     <div className="grid grid-cols-2 gap-3">
                                         {data.referencias.map((refUrl, index) => (
                                             <div key={index} className="relative group">
-                                                <UploadBox title={`Ref ${index + 1}`} previewUrl={refUrl} onChange={(e) => handleImageUpload(e, index)} />
+                                                <UploadBox title={`Ref ${index + 1}`} previewUrl={refUrl} onChange={(e) => handleImageUpload(e, index)} customClass="h-28 w-full" />
                                                 {refUrl && (
                                                     <button onClick={(e) => removeImage(e, index)} className="absolute top-1 right-1 w-6 h-6 bg-red-500/90 hover:bg-red-600 text-white rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-md">
                                                         <i className="ph-bold ph-trash text-xs"></i>
@@ -680,7 +690,7 @@
                                     </div>
                                 </SectionCard>
 
-                                {/* --- MARCA DE AGUA INFERIOR (FORMULARIO) --- */}
+                                {/* --- MARCA DE AGUA INFERIOR --- */}
                                 <div className="mt-8 pt-4 border-t border-brand-border flex justify-center items-center select-none w-full opacity-80 pb-2">
                                     <span className="text-[#737373] text-[11px] font-semibold tracking-[0.15em] font-poppins">CREADO POR</span>
                                     <span className="text-brand-primary text-[11px] font-bold tracking-[0.15em] ml-1.5 font-poppins">@NECESITODISENOS</span>
@@ -688,7 +698,6 @@
 
                             </div>
                         </aside>
-
 
                         {/* PANEL DERECHO: DOCUMENTO GENERADO (LIVE PREVIEW) */}
                         <main className="flex-1 flex flex-col relative bg-transparent overflow-hidden">
@@ -714,7 +723,7 @@
                                 </div>
                             </header>
 
-                            {/* El Documento (A4 style / One Page) */}
+                            {/* El Documento */}
                             <div className="flex-1 overflow-y-auto py-10 px-4 lg:px-10 custom-scrollbar">
                                 
                                 <div id="document-to-export" className="document-container max-w-[850px] mx-auto bg-white border border-gray-200 rounded-xl shadow-xl min-h-[1000px] overflow-hidden text-gray-900 print:bg-white print:border-none print:shadow-none print:m-0 print:p-0">
@@ -730,7 +739,6 @@
                                                 <p className="text-gray-500 font-mono text-sm break-words">Creado por {data.agencyName || '@tuagencia'}</p>
                                             </div>
                                             <div className="text-right flex flex-col items-end gap-4">
-                                                {/* LOGOTIPO */}
                                                 {data.agencyLogo && (
                                                     <div className="h-12 w-32 bg-no-repeat bg-right bg-contain" style={{ backgroundImage: `url(${data.agencyLogo})` }}></div>
                                                 )}
@@ -753,7 +761,6 @@
                                     {/* CUERPO DOCUMENTO */}
                                     <div className="p-10 md:p-14 space-y-12">
                                         
-                                        {/* Nueva Sección: Contexto & Dolores */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
                                                 <h3 className="text-xs font-poppins font-bold uppercase tracking-widest text-black border-b-2 pb-2 mb-4 inline-block" style={{ borderColor: data.documentColor }}>Contexto / Historia</h3>
@@ -765,7 +772,6 @@
                                             </div>
                                         </div>
 
-                                        {/* Grid: Objetivos & Diferenciador */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
                                                 <h3 className="text-xs font-poppins font-bold uppercase tracking-widest text-black border-b-2 pb-2 mb-4 inline-block" style={{ borderColor: data.documentColor }}>Objetivos del Diseño</h3>
@@ -777,7 +783,6 @@
                                             </div>
                                         </div>
 
-                                        {/* Background Card: Audiencia & Competencia */}
                                         <div className="bg-gray-50 rounded-xl p-8 border border-gray-100">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                 <div>
@@ -797,12 +802,10 @@
                                             </div>
                                         </div>
 
-                                        {/* Identidad */}
                                         <div className="border-t border-gray-200 pt-8 mt-8">
                                             <h3 className="text-xs font-poppins font-bold uppercase tracking-widest text-black border-b border-gray-200 pb-2 mb-6">Identidad & Dirección</h3>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                                 
-                                                {/* Renderizado en Burbujas para Preview */}
                                                 <div className="col-span-2 md:col-span-1">
                                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Valores Clave</p>
                                                     <div className="flex flex-wrap gap-1.5">
@@ -837,11 +840,9 @@
                                             </div>
                                         </div>
 
-                                        {/* Entregables */}
                                         <div>
                                             <h3 className="text-xs font-poppins font-bold uppercase tracking-widest text-black border-b border-gray-200 pb-2 mb-6">Alcance y Entregables</h3>
                                             
-                                            {/* Burbujas Canales */}
                                             <div className="mb-6">
                                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Canales de Distribución</p>
                                                 <div className="flex flex-wrap gap-2">
@@ -886,12 +887,10 @@
                                             </div>
                                         </div>
 
-                                        {/* Moodboard */}
                                         {hasReferences && (
                                             <div>
                                                 <h3 className="text-xs font-poppins font-bold uppercase tracking-widest text-black border-b border-gray-200 pb-2 mb-6">Referencias (Moodboard)</h3>
                                                 <div className="grid grid-cols-2 gap-4 auto-rows-[160px] md:auto-rows-[200px]">
-                                                    {/* IMAGEN DEL MOODBOARD */}
                                                     {data.referencias.map((ref, idx) => ref && (
                                                         <div key={idx} 
                                                              className="rounded-xl border border-gray-200 shadow-sm bg-gray-50 bg-cover bg-center bg-no-repeat h-full w-full" 
@@ -917,7 +916,6 @@
                                                     <p className="font-bold text-white mb-0.5 break-words">{data.agencyName || '@tuagencia'}</p>
                                                     {data.agencyWeb && <p className="text-xs text-gray-400 font-mono break-words">{data.agencyWeb}</p>}
                                                 </div>
-                                                {/* LOGOTIPO FOOTER */}
                                                 {data.agencyLogo && (
                                                     <div className="h-12 w-12 bg-white/10 rounded-lg shrink-0 bg-no-repeat bg-center bg-contain" 
                                                          style={{ backgroundImage: `url(${data.agencyLogo})`, backgroundOrigin: 'content-box', padding: '6px' }}>
@@ -931,7 +929,7 @@
                             </div>
                         </main>
 
-                        {/* Modal Confirmación de Reseteo (React Component) */}
+                        {/* Modal Confirmación de Reseteo */}
                         {isResetModalOpen && (
                             <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn">
                                 <div className="bg-brand-card border border-brand-border rounded-xl p-6 max-w-sm w-[90%] shadow-2xl animate-scaleIn">
@@ -951,6 +949,27 @@
                             </div>
                         )}
 
+                        {/* Modal de ERROR de subida de imagen */}
+                        {errorMsg && (
+                            <div className="fixed inset-0 z-[150000] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn p-4">
+                                <div className="bg-brand-card border border-red-500/30 rounded-xl p-6 max-w-sm w-full shadow-2xl animate-scaleIn relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 shadow-glow"></div>
+                                    <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 font-display">
+                                        <i className="ph-fill ph-warning-octagon text-red-500 text-2xl"></i> 
+                                        Imagen muy pesada
+                                    </h3>
+                                    <p className="text-sm text-gray-300 mb-6 leading-relaxed">
+                                        {errorMsg}
+                                    </p>
+                                    <div className="flex justify-end">
+                                        <button onClick={() => setErrorMsg(null)} className="px-5 py-2.5 rounded-lg text-sm font-bold bg-white/10 hover:bg-white/20 text-white transition-colors">
+                                            Entendido
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Modal de Carga Falsa (Exportación PDF) */}
                         {isExportModalOpen && (
                             <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn p-4">
@@ -961,7 +980,7 @@
                                             <div className="absolute inset-0 border-[3px] border-brand-primary rounded-full border-t-transparent animate-spin"></div>
                                             <i className="ph-fill ph-file-pdf text-brand-primary text-xl absolute"></i>
                                         </div>
-                                        <h3 className="text-xl font-display font-bold text-white mb-2">Generando contrato...</h3>
+                                        <h3 className="text-xl font-display font-bold text-white mb-2">Generando documento...</h3>
                                         <p className="text-gray-400 text-sm">Por favor esperá unos segundos.</p>
                                     </div>
                                 </div>
