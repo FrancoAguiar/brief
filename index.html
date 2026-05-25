@@ -11,9 +11,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -51,6 +49,7 @@
                         'ring': 'ring 2s ease-in-out infinite',
                         'fadeIn': 'fadeIn 0.2s ease-out',
                         'scaleIn': 'scaleIn 0.2s ease-out',
+                        'warning-pulse': 'warningPulse 2s infinite',
                     },
                     keyframes: {
                         pulsePrimary: {
@@ -74,6 +73,10 @@
                         scaleIn: {
                             '0%': { transform: 'scale(0.95)', opacity: '0' },
                             '100%': { transform: 'scale(1)', opacity: '1' },
+                        },
+                        warningPulse: {
+                            '0%, 100%': { boxShadow: '0 0 0 0 rgba(0, 102, 255, 0.4)' },
+                            '70%': { boxShadow: '0 0 0 10px rgba(0, 102, 255, 0)' }
                         }
                     }
                 }
@@ -148,7 +151,7 @@
         }
         .input-field::placeholder { color: #52525B; }
 
-        /* Contenedor especial para el Input de Tags (Burbujas) */
+        /* Contenedor especial para el Input de Tags */
         .input-field-wrapper {
             background-color: rgba(0,0,0,0.3); border: 1px solid #262626; color: #F4F4F5; 
             padding: 0.4rem 0.6rem; border-radius: 0.5rem; font-size: 0.875rem; 
@@ -164,7 +167,7 @@
         @media print {
             body { background: #f3f4f6 !important; overflow: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .bg-grid-pattern, .bg-ambient-glow, .web-watermark { display: none !important; }
-            aside, header.print-hidden { display: none !important; }
+            aside, header.print-hidden, #topWarningHeader, #igAlertModal { display: none !important; }
             main { background: none !important; padding: 0 !important; overflow: visible !important; height: auto !important; width: 100% !important; }
             .document-container { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; border: none !important; }
             .print\:text-black { color: #000 !important; }
@@ -194,40 +197,29 @@
 
         // --- DATOS POR DEFECTO ---
         const DEFAULT_DATA = {
-            // 0. Configuración de Agencia
             agencyName: '@necesitodisenos',
             agencyWeb: 'www.necesitodisenos.com',
             agencyLogo: null,
             documentColor: '#0066FF',
-            
-            // 1. Proyecto & Contexto
             cliente: '',
             proyecto: '',
             descripcion: '',
             historia: '', 
             dolores: '', 
             objetivos: '',
-            
-            // 2. Audiencia & Mercado
             publico: '',
             competencia: '',
             diferenciador: '',
-            
-            // 3. Identidad & Tono
             valores: [], 
             tono: [],    
             noHacer: '', 
             colores: ['#0066FF', '#121212', '#FFFFFF'],
-            
-            // 4. Entregables & Logística
             entregables: [
                 { id: 1, nombre: 'Diseño de Logotipo', formato: 'Vectorial (AI, EPS, SVG)' }
             ],
             canales: [], 
             presupuesto: '',
             deadline: '',
-            
-            // 5. Referencias Visuales
             referencias: [null, null, null, null]
         };
 
@@ -350,18 +342,30 @@
             const [isExporting, setIsExporting] = useState(false);
             const [isResetModalOpen, setIsResetModalOpen] = useState(false);
             const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-            const [errorMsg, setErrorMsg] = useState(null); // Estado para controlar mensajes de error
+            const [isIgAlertOpen, setIsIgAlertOpen] = useState(false); 
+            const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+            const [errorMsg, setErrorMsg] = useState(null);
 
             useEffect(() => {
                 try {
                     localStorage.setItem('briefPro_data_v6', JSON.stringify(data));
                 } catch (e) {
-                    console.warn("Exceso de cuota en localStorage. Guardando datos sin imágenes para evitar romper la página...");
-                    // Si se excede la memoria, quitamos también el logo para ser seguros
+                    console.warn("Exceso de cuota en localStorage. Guardando datos de forma segura...");
                     const safeData = { ...data, agencyLogo: null, referencias: [null, null, null, null] };
                     localStorage.setItem('briefPro_data_v6', JSON.stringify(safeData));
                 }
             }, [data]);
+
+            // Lógica para mostrar el Pop-up de Instagram una sola vez por persona
+            useEffect(() => {
+                const hasSeenAlert = localStorage.getItem('brief_new_ig_alert');
+                if (!hasSeenAlert) {
+                    setTimeout(() => {
+                        setIsIgAlertOpen(true);
+                        localStorage.setItem('brief_new_ig_alert', 'true');
+                    }, 1500);
+                }
+            }, []);
 
             // Handlers Genéricos
             const handleChange = (field, value) => setData(prev => ({ ...prev, [field]: value }));
@@ -396,16 +400,15 @@
             const updateEntregable = (id, field, value) => setData(prev => ({ ...prev, entregables: prev.entregables.map(item => item.id === id ? { ...item, [field]: value } : item) }));
             const removeEntregable = (id) => setData(prev => ({ ...prev, entregables: prev.entregables.filter(item => item.id !== id) }));
 
-            // Handlers Imágenes Agencia (CON VALIDACIÓN DE TAMAÑO)
+            // Handlers Imágenes Agencia
             const handleAgencyLogoUpload = (e) => {
                 const file = e.target.files[0];
                 if (file) {
                     if (file.size > MAX_IMAGE_SIZE_BYTES) {
                         setErrorMsg(`El archivo que intentas subir es demasiado pesado. El límite es de ${MAX_IMAGE_SIZE_MB}MB.`);
-                        e.target.value = ''; // Reset input
+                        e.target.value = '';
                         return;
                     }
-
                     const reader = new FileReader();
                     reader.onload = (ev) => handleChange('agencyLogo', ev.target.result);
                     reader.readAsDataURL(file);
@@ -416,16 +419,15 @@
                 handleChange('agencyLogo', null);
             };
 
-            // Handlers Imágenes Referencia (CON VALIDACIÓN DE TAMAÑO)
+            // Handlers Imágenes Referencia
             const handleImageUpload = (e, index) => {
                 const file = e.target.files[0];
                 if (file) {
                     if (file.size > MAX_IMAGE_SIZE_BYTES) {
                         setErrorMsg(`La imagen que intentas subir es demasiado pesada. El límite por imagen es de ${MAX_IMAGE_SIZE_MB}MB.`);
-                        e.target.value = ''; // Reset input
+                        e.target.value = '';
                         return;
                     }
-
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                         const newRefs = [...data.referencias];
@@ -442,19 +444,13 @@
                 setData(prev => ({ ...prev, referencias: newRefs }));
             };
 
-            const handleResetClick = () => {
-                setIsResetModalOpen(true);
-            };
-
+            const handleResetClick = () => setIsResetModalOpen(true);
             const executeReset = () => {
                 localStorage.removeItem('briefPro_data_v6');
                 setData(DEFAULT_DATA);
                 setIsResetModalOpen(false);
             };
-
-            const closeResetModal = () => {
-                setIsResetModalOpen(false);
-            };
+            const closeResetModal = () => setIsResetModalOpen(false);
 
             // Descargar PDF
             const handleExportPDF = () => {
@@ -463,7 +459,6 @@
                 
                 setTimeout(() => {
                     const element = document.getElementById('document-to-export');
-                    
                     const w = element.offsetWidth;
                     const h = element.offsetHeight;
 
@@ -482,7 +477,6 @@
                 }, 1500);
             };
 
-            // Progreso
             const calculateProgress = () => {
                 const requiredFields = [data.cliente, data.proyecto, data.descripcion, data.objetivos, data.publico];
                 const filled = requiredFields.filter(f => f && f.trim().length > 0).length;
@@ -493,33 +487,79 @@
 
             return (
                 <>
+                    {}
+                    {isIgAlertOpen && (
+                        <div id="igAlertModal" className="fixed inset-0 z-[300000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+                            <div className="bg-[#121212] border border-brand-primary/30 rounded-2xl w-full max-w-[440px] shadow-[0_0_50px_rgba(0,102,255,0.25)] overflow-hidden relative animate-scaleIn">
+                                <div className="absolute top-0 left-0 right-0 h-[3px] bg-brand-primary shadow-glow"></div>
+                                <div className="p-6 text-center flex flex-col items-center">
+                                    <div className="w-14 h-14 bg-brand-primary/10 rounded-full flex items-center justify-center mb-4 border border-brand-primary/20 animate-warning-pulse">
+                                        <i className="ph-fill ph-instagram-logo text-brand-primary text-3xl"></i>
+                                    </div>
+                                    <h3 className="text-xl font-display font-bold text-white mb-2 tracking-tight">Tenemos nueva cuenta</h3>
+                                    <p className="text-gray-400 text-sm mb-5 leading-relaxed">
+                                        Lamentablemente nos bajaron nuestra cuenta anterior. Mientras resolvemos el problema, creamos este espacio alternativo para seguir compartiendo contenido con vos.
+                                    </p>
+                                    
+                                    <div className="w-full bg-black/40 border border-white/5 rounded-xl p-3.5 mb-5 flex items-center justify-between">
+                                        <span className="text-xs text-gray-400 font-medium">Nueva cuenta oficial:</span>
+                                        <a href="https://www.instagram.com/necesitodisenos.ok/" target="_blank" className="text-sm font-bold text-white hover:text-brand-primary underline transition-colors">@necesitodisenos.ok</a>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2 w-full">
+                                        <a href="https://www.instagram.com/necesitodisenos.ok/" target="_blank" onClick={() => setIsIgAlertOpen(false)} className="w-full bg-brand-primary hover:bg-brand-hover text-white font-bold text-xs py-3.5 rounded-xl shadow-glow transition-all uppercase tracking-wider flex items-center justify-center gap-1.5">
+                                            <i className="ph-bold ph-arrow-square-out text-base"></i> Abrir en Instagram
+                                        </a>
+                                        <button onClick={() => setIsIgAlertOpen(false)} className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors py-2.5">
+                                            Cerrar ventana
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* PANTALLA DE BLOQUEO MOBILE */}
                     <div className="md:hidden fixed inset-0 z-[200000] bg-[#0A0A0A] flex flex-col items-center justify-center p-6 text-center">
                         <div className="bg-brand-card border border-brand-border rounded-2xl p-8 max-w-[340px] w-full shadow-2xl relative overflow-hidden animate-scaleIn">
                             <div className="absolute top-0 left-0 right-0 h-1 bg-brand-primary shadow-glow"></div>
-                            
                             <div className="w-16 h-16 bg-brand-primary/10 border border-brand-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 relative">
                                 <i className="ph-fill ph-desktop text-brand-primary text-3xl relative z-10"></i>
                             </div>
-                            
                             <h2 className="text-2xl font-display font-bold text-white mb-3 tracking-tight">Usá una computadora</h2>
-                            
                             <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                                 BriefEditable™ genera documentos en PDF de alta calidad y precisión. Para garantizar la mejor experiencia y rendimiento, esta herramienta <strong className="text-white">solo está disponible en PC o Mac</strong>.
                             </p>
-                            
                             <div className="inline-flex items-center gap-2 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-4 py-2.5 rounded-lg border border-brand-primary/20 uppercase tracking-widest shadow-glow">
                                 <i className="ph-bold ph-lock-key text-sm"></i> Acceso Restringido
                             </div>
                         </div>
-                        
                         <div className="mt-10 flex justify-center items-center select-none opacity-80">
                             <span className="text-[#737373] text-[11px] font-semibold tracking-[0.15em] font-poppins">CREADO POR</span>
                             <span className="text-brand-primary text-[11px] font-bold tracking-[0.15em] ml-1.5 font-poppins">@NECESITODISENOS</span>
                         </div>
                     </div>
 
-                    <div className="hidden md:flex h-screen overflow-hidden bg-transparent">
+                    {}
+                    {isHeaderVisible && (
+                        <div id="topWarningHeader" className="bg-brand-surface border-b border-brand-border/40 text-gray-300 py-2.5 px-6 z-[500] flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4 shrink-0 w-full relative transition-all duration-300 shadow-[0_4px_25px_rgba(0,102,255,0.15)] print-hidden">
+                            <span className="flex flex-col sm:flex-row items-center gap-2 text-xs sm:text-sm font-medium tracking-wide text-center">
+                                <div className="flex items-center gap-2">
+                                    <i className="ph-fill ph-bell-ringing text-brand-primary text-base animate-ring"></i>
+                                    <span>Tuvimos problemas con la cuenta anterior. Seguinos en nuestro nuevo Instagram oficial:</span>
+                                </div>
+                                <a href="https://www.instagram.com/necesitodisenos.ok/" target="_blank" className="bg-brand-primary text-white hover:bg-brand-hover px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1 shadow-md ml-1 hover:scale-105">
+                                    <i className="ph-fill ph-instagram-logo text-sm"></i> @necesitodisenos.ok
+                                </a>
+                            </span>
+                            <button onClick={() => setIsHeaderVisible(false)} className="absolute right-4 text-gray-500 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1">
+                                <i className="ph-bold ph-x text-[10px]"></i>
+                            </button>
+                        </div>
+                    )}
+
+                    {}
+                    <div className="hidden md:flex h-[calc(100vh-45px)] overflow-hidden bg-transparent">
                         
                         {/* PANEL IZQUIERDO: FORMULARIO DEL DISEÑADOR */}
                         <aside className="w-full md:w-[480px] border-r border-brand-border flex flex-col relative z-20 bg-brand-surface/80 backdrop-blur-md shadow-sheet">
@@ -566,7 +606,7 @@
                                     <InputField label="Nombre o @Usuario" value={data.agencyName} onChange={e => handleChange('agencyName', e.target.value)} placeholder="Ej: @necesitodisenos" />
                                     <InputField label="Sitio Web / Portafolio" value={data.agencyWeb} onChange={e => handleChange('agencyWeb', e.target.value)} placeholder="Ej: www.necesitodisenos.com" />
                                     
-                                    <div className="mb-5 mt-6 pt-5 border-t border-white/5">
+                                    <div className="mb-5">
                                         <label className="block text-[0.7rem] font-poppins font-bold uppercase tracking-[0.05em] text-gray-400 mb-1.5">Color del Documento Exportado</label>
                                         <p className="text-[11px] text-gray-500 mb-3 leading-tight">Elige el color para los títulos y acentos visuales del PDF.</p>
                                         <div className="flex items-center gap-3">
@@ -615,7 +655,7 @@
 
                                     <InputField label="Restricciones (Lo que NO hacer)" helperText="Colores odiados, clichés a evitar, estilos prohibidos." value={data.noHacer} onChange={e => handleChange('noHacer', e.target.value)} isTextarea placeholder="Evitar colores neón, no usar tipografía serif..." />
                                     
-                                    <div className="mb-2 mt-4">
+                                    <div className="mb-2">
                                         <label className="block text-[0.7rem] font-poppins font-bold uppercase tracking-[0.05em] text-gray-400 mb-3">Paleta de Colores Sugerida</label>
                                         <div className="flex flex-wrap gap-3">
                                             {data.colores.map((color, index) => (
@@ -633,7 +673,6 @@
                                                 <input type="color" onChange={addColor} className="absolute inset-[-10px] w-[50px] h-[50px] opacity-0 cursor-pointer" />
                                             </div>
                                         </div>
-                                        <p className="text-[10px] text-gray-500 mt-3 font-mono">Selector nativo: Click en el "+" para añadir color.</p>
                                     </div>
                                 </SectionCard>
 
@@ -690,7 +729,6 @@
                                     </div>
                                 </SectionCard>
 
-                                {/* --- MARCA DE AGUA INFERIOR --- */}
                                 <div className="mt-8 pt-4 border-t border-brand-border flex justify-center items-center select-none w-full opacity-80 pb-2">
                                     <span className="text-[#737373] text-[11px] font-semibold tracking-[0.15em] font-poppins">CREADO POR</span>
                                     <span className="text-brand-primary text-[11px] font-bold tracking-[0.15em] ml-1.5 font-poppins">@NECESITODISENOS</span>
@@ -699,7 +737,7 @@
                             </div>
                         </aside>
 
-                        {/* PANEL DERECHO: DOCUMENTO GENERADO (LIVE PREVIEW) */}
+                        {}
                         <main className="flex-1 flex flex-col relative bg-transparent overflow-hidden">
                             
                             {/* Header Preview */}
@@ -970,7 +1008,7 @@
                             </div>
                         )}
 
-                        {/* Modal de Carga Falsa (Exportación PDF) */}
+                        {/* Modal de Carga (Exportación PDF) */}
                         {isExportModalOpen && (
                             <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn p-4">
                                 <div className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-[500px] shadow-2xl animate-scaleIn overflow-hidden relative">
