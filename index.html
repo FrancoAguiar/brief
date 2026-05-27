@@ -342,6 +342,8 @@
             const [isExporting, setIsExporting] = useState(false);
             const [isResetModalOpen, setIsResetModalOpen] = useState(false);
             const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+            const [exportComplete, setExportComplete] = useState(false);
+            const [isInitialLoading, setIsInitialLoading] = useState(true);
             const [isIgAlertOpen, setIsIgAlertOpen] = useState(false); 
             const [isHeaderVisible, setIsHeaderVisible] = useState(true);
             const [errorMsg, setErrorMsg] = useState(null);
@@ -355,6 +357,12 @@
                     localStorage.setItem('briefPro_data_v6', JSON.stringify(safeData));
                 }
             }, [data]);
+
+            // Pantalla de carga inicial para darle sensación de software premium
+            useEffect(() => {
+                const timer = setTimeout(() => setIsInitialLoading(false), 1400);
+                return () => clearTimeout(timer);
+            }, []);
 
             // Lógica para mostrar el Pop-up de Instagram una sola vez por persona
             useEffect(() => {
@@ -472,7 +480,7 @@
                     
                     html2pdf().set(opt).from(element).save().then(() => {
                         setIsExporting(false);
-                        setIsExportModalOpen(false);
+                        setExportComplete(true);
                     });
                 }, 1500);
             };
@@ -485,9 +493,83 @@
 
             const hasReferences = data.referencias.some(ref => ref !== null);
 
+            const closeExportModal = () => {
+                setIsExportModalOpen(false);
+                setExportComplete(false);
+            };
+
+            const PromoBanner = ({ type = 'calculator' }) => {
+                const promos = {
+                    calculator: {
+                        icon: 'ph-calculator',
+                        href: 'https://www.necesitodisenos.com/calculadora',
+                        kicker: 'Herramienta recomendada',
+                        title: '¿Estás cobrando bien este proyecto?',
+                        text: 'Usá la calculadora freelance para definir tu tarifa por hora y mandar un presupuesto con más seguridad.',
+                        cta: 'USAR CALCULADORA'
+                    },
+                    mapa: {
+                        icon: 'ph-rocket-launch',
+                        href: 'https://www.necesitodisenos.com/mapa',
+                        kicker: 'Siguiente paso',
+                        title: 'Convertí este brief en un cliente real',
+                        text: 'Aprendé el sistema para conseguir clientes desde Instagram y dejar de depender de recomendaciones sueltas.',
+                        cta: 'QUIERO ESCALAR'
+                    }
+                };
+                const item = promos[type];
+                return (
+                    <div className="w-full max-w-[850px] mx-auto mb-6 print-hidden">
+                        <a href={item.href} target="_blank" className="block bg-[#121212] border border-brand-primary/20 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden group hover:border-brand-primary/40 transition-all">
+                            <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute top-0 left-[-100%] w-1/2 h-full bg-gradient-to-r from-transparent via-brand-primary/10 to-transparent skew-x-12 transition-transform duration-1000 group-hover:translate-x-[300%]"></div>
+                                <div className="absolute -right-16 -top-16 w-40 h-40 bg-brand-primary/10 rounded-full blur-3xl"></div>
+                            </div>
+                            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-4 text-center sm:text-left">
+                                    <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center shrink-0 border border-brand-primary/20 transition-transform group-hover:scale-110">
+                                        <i className={`ph-fill ${item.icon} text-brand-primary text-2xl`}></i>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-primary mb-1">{item.kicker}</p>
+                                        <h4 className="text-white font-bold text-base sm:text-lg mb-1">{item.title}</h4>
+                                        <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">{item.text}</p>
+                                    </div>
+                                </div>
+                                <div className="shrink-0 bg-brand-primary hover:bg-brand-hover text-white px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 w-full sm:w-auto text-center flex items-center justify-center gap-2 shadow-glow group-hover:shadow-glow-hover group-hover:-translate-y-0.5">
+                                    {item.cta} <i className="ph-bold ph-arrow-right text-base"></i>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                );
+            };
+
             return (
                 <>
-                    {}
+                    {isInitialLoading && (
+                        <div className="fixed inset-0 z-[400000] bg-[#0A0A0A] flex flex-col items-center justify-center p-6 animate-fadeIn">
+                            <div className="absolute inset-0 bg-grid-pattern opacity-60"></div>
+                            <div className="absolute top-1/2 left-1/2 w-[520px] h-[520px] bg-brand-primary/10 blur-[100px] rounded-full -translate-x-1/2 -translate-y-1/2"></div>
+                            <div className="relative z-10 flex flex-col items-center text-center">
+                                <div className="w-20 h-20 rounded-2xl bg-brand-primary/10 border border-brand-primary/25 flex items-center justify-center shadow-glow mb-6 animate-float">
+                                    <i className="ph-fill ph-clipboard-text text-brand-primary text-4xl"></i>
+                                </div>
+                                <h2 className="text-3xl font-display font-black text-white tracking-tight mb-2">
+                                    Brief<span className="text-brand-primary">Editable™</span>
+                                </h2>
+                                <p className="text-gray-400 text-sm mb-6">Preparando tu espacio de trabajo...</p>
+                                <div className="w-56 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                    <div className="h-full w-2/3 bg-brand-primary rounded-full shadow-glow animate-pulse-primary"></div>
+                                </div>
+                                <div className="mt-8 flex justify-center items-center select-none opacity-80">
+                                    <span className="text-[#737373] text-[10px] font-semibold tracking-[0.15em] font-poppins">CREADO POR</span>
+                                    <span className="text-brand-primary text-[10px] font-bold tracking-[0.15em] ml-1.5 font-poppins">@NECESITODISENOS</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {isIgAlertOpen && (
                         <div id="igAlertModal" className="fixed inset-0 z-[300000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
                             <div className="bg-[#121212] border border-brand-primary/30 rounded-2xl w-full max-w-[440px] shadow-[0_0_50px_rgba(0,102,255,0.25)] overflow-hidden relative animate-scaleIn">
@@ -764,6 +846,9 @@
                             {/* El Documento */}
                             <div className="flex-1 overflow-y-auto py-10 px-4 lg:px-10 custom-scrollbar">
                                 
+                                {/* Banner Calculadora Freelance */}
+                                <PromoBanner type="calculator" />
+                                
                                 <div id="document-to-export" className="document-container max-w-[850px] mx-auto bg-white border border-gray-200 rounded-xl shadow-xl min-h-[1000px] overflow-hidden text-gray-900 print:bg-white print:border-none print:shadow-none print:m-0 print:p-0">
                                     
                                     {/* CABECERA DOCUMENTO */}
@@ -964,6 +1049,10 @@
                                     </div>
 
                                 </div>
+
+                                <div className="mt-8">
+                                    <PromoBanner type="mapa" />
+                                </div>
                             </div>
                         </main>
 
@@ -1008,19 +1097,56 @@
                             </div>
                         )}
 
-                        {/* Modal de Carga (Exportación PDF) */}
+                        {/* Modal de Carga + anuncio post-exportación */}
                         {isExportModalOpen && (
                             <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn p-4">
-                                <div className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-[500px] shadow-2xl animate-scaleIn overflow-hidden relative">
-                                    <div className="flex flex-col items-center justify-center p-12 text-center">
-                                        <div className="w-16 h-16 relative flex items-center justify-center mb-6">
-                                            <div className="absolute inset-0 border-[3px] border-white/5 rounded-full"></div>
-                                            <div className="absolute inset-0 border-[3px] border-brand-primary rounded-full border-t-transparent animate-spin"></div>
-                                            <i className="ph-fill ph-file-pdf text-brand-primary text-xl absolute"></i>
+                                <div className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-[540px] shadow-2xl animate-scaleIn overflow-hidden relative">
+                                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-brand-primary shadow-glow"></div>
+
+                                    {!exportComplete ? (
+                                        <div className="flex flex-col items-center justify-center p-12 text-center">
+                                            <div className="w-16 h-16 relative flex items-center justify-center mb-6">
+                                                <div className="absolute inset-0 border-[3px] border-white/5 rounded-full"></div>
+                                                <div className="absolute inset-0 border-[3px] border-brand-primary rounded-full border-t-transparent animate-spin"></div>
+                                                <i className="ph-fill ph-file-pdf text-brand-primary text-xl absolute"></i>
+                                            </div>
+                                            <h3 className="text-xl font-display font-bold text-white mb-2">Generando brief...</h3>
+                                            <p className="text-gray-400 text-sm">Ordenando la información y preparando el PDF.</p>
+                                            <div className="mt-6 w-full max-w-[260px] h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                                <div className="h-full w-2/3 bg-brand-primary rounded-full shadow-glow animate-pulse-primary"></div>
+                                            </div>
                                         </div>
-                                        <h3 className="text-xl font-display font-bold text-white mb-2">Generando documento...</h3>
-                                        <p className="text-gray-400 text-sm">Por favor esperá unos segundos.</p>
-                                    </div>
+                                    ) : (
+                                        <div className="flex flex-col p-8">
+                                            <div className="text-center mb-6">
+                                                <i className="ph-fill ph-check-circle text-brand-primary text-4xl mb-3 animate-pulse"></i>
+                                                <h3 className="text-2xl font-display font-bold text-white mb-1 uppercase tracking-tight">¡Brief generado!</h3>
+                                                <p className="text-brand-primary font-medium text-sm tracking-wider uppercase">Descarga completada</p>
+                                            </div>
+
+                                            <a href="https://www.necesitodisenos.com/factura" target="_blank" className="w-full bg-[#121212] border border-brand-primary/20 rounded-xl flex flex-col items-center text-center p-6 relative overflow-hidden group">
+                                                <div className="absolute inset-0 pointer-events-none">
+                                                    <div className="absolute top-0 left-[-100%] w-1/2 h-full bg-gradient-to-r from-transparent via-brand-primary/10 to-transparent skew-x-12 transition-transform duration-1000 group-hover:translate-x-[300%]"></div>
+                                                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-brand-primary/10 rounded-full blur-3xl"></div>
+                                                </div>
+
+                                                <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center border border-brand-primary/20 shrink-0 mb-4 transition-transform group-hover:scale-110 relative z-10">
+                                                    <i className="ph-fill ph-receipt text-brand-primary text-2xl"></i>
+                                                </div>
+
+                                                <h4 className="text-white font-bold text-base mb-2 relative z-10">Ahora que ya tenés el brief...<br/>¿cómo vas a cobrar el anticipo?</h4>
+                                                <p className="text-sm text-gray-400 mb-6 leading-relaxed relative z-10">No cierres el proyecto con un mensaje suelto. Mandá una factura profesional y hacé que el cliente te tome en serio desde el primer pago.</p>
+
+                                                <div className="w-full bg-brand-primary hover:bg-brand-hover text-white px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 shadow-glow group-hover:shadow-glow-hover group-hover:-translate-y-0.5 relative z-10">
+                                                    QUIERO EL GENERADOR DE FACTURAS <i className="ph-bold ph-arrow-right text-base"></i>
+                                                </div>
+                                            </a>
+
+                                            <button onClick={closeExportModal} className="mt-5 py-2 text-gray-500 hover:text-white text-xs font-bold transition-colors w-full uppercase tracking-widest">
+                                                Cerrar ventana
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
