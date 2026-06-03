@@ -1149,9 +1149,16 @@
                                                 </div>
 
                                                 {/* Imagen del producto (Factura) */}
-                                                <div className="relative z-10 mb-5 transition-transform duration-500 group-hover:scale-105 group-hover:-translate-y-1">
-                                                    <div className="absolute inset-0 bg-brand-primary/20 blur-2xl rounded-full scale-75"></div>
-                                                    <img src="factura.png" alt="Generador de Facturas" className="w-40 md:w-48 h-auto object-contain drop-shadow-2xl relative z-10 mx-auto transform rotate-2" />
+                                                <div className="relative z-10 mb-6 w-full max-w-[360px] mx-auto transition-transform duration-500 group-hover:scale-[1.03] group-hover:-translate-y-1">
+                                                    <div className="absolute inset-0 bg-brand-primary/25 blur-2xl rounded-xl scale-90"></div>
+                                                    <video 
+                                                        src="videofactura.mp4" 
+                                                        autoPlay 
+                                                        loop 
+                                                        muted 
+                                                        playsInline 
+                                                        className="w-full h-auto rounded-xl border border-brand-primary/30 shadow-[0_10px_40px_-10px_rgba(0,102,255,0.4)] relative z-10 object-cover"
+                                                    ></video>
                                                 </div>
 
                                                 <h4 className="text-white font-bold text-base mb-2 relative z-10">Ahora que ya tenés el brief...<br/>¿cómo vas a cobrar el anticipo?</h4>
